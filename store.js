@@ -13,6 +13,7 @@ const DEFAULT = {
   captures: [],       // {id, ts, source, sender, title, text, type, urgent}
   subscriptions: [],  // web-push 구독 객체
   alarms: [],         // {id, time, label, days, enabled, lastFired}
+  contacts: [],       // {id, sender, company, name, department}
   rules: [            // 기본 키워드 규칙 (대시보드에서 수정)
     { id: 'r1', keyword: '견적', category: '영업', urgent: true },
     { id: 'r2', keyword: '발주', category: '구매', urgent: true },

@@ -83,6 +83,19 @@
     </section>
 
     <section class="card">
+      <div class="card-head"><h2>거래처·담당자</h2></div>
+      <p class="muted small">MacroDroid가 보내는 보낸 사람 값과 정확히 일치할 때 업체 정보가 알람에 붙습니다.</p>
+      <form id="contactForm" class="contact-form">
+        <input id="contactSender" type="text" placeholder="보낸 사람 또는 전화번호" required />
+        <input id="contactCompany" type="text" placeholder="업체명" />
+        <input id="contactName" type="text" placeholder="이름" />
+        <input id="contactDepartment" type="text" placeholder="부서" />
+        <button class="primary-btn" type="submit">저장</button>
+      </form>
+      <ul id="contacts" class="contacts"></ul>
+    </section>
+
+    <section class="card">
       <div class="card-head"><h2>설정 · 연결</h2></div>
       <div class="setting-row"><span>MacroDroid 전송 주소</span></div>
       <code id="ingestUrl" class="endpoint">…</code>

@@ -107,6 +107,17 @@ async function pushAll(payload) {
   }
 }
 
+function findContact(sender) {
+  const value = String(sender || '').trim().toLowerCase();
+  if (!value) return null;
+  return get().contacts.find((contact) =>
+    [contact.sender, contact.name].some((field) => String(field || '').trim().toLowerCase() === value)) || null;
+}
+
+function contactLabel(contact) {
+  return contact ? [contact.company, contact.name, contact.department].filter(Boolean).join(' · ') : '';
+}
+
 // ---- 설정: 앱에 넘길 공개키 ----
 app.get('/api/config', (_req, res) => res.json({ vapidPublicKey: PUB }));
 
@@ -127,6 +138,11 @@ app.all('/api/ingest', async (req, res) => {
     type: (src.type || 'msg').toString().slice(0, 20)
   };
   const db = get();
+  const contact = findContact(cap.sender);
+  if (contact) {
+    cap.contactId = contact.id;
+    cap.contactLabel = contactLabel(contact);
+  }
   const { urgent, matched, categories } = evaluate(cap, db.rules);
   cap.urgent = urgent;
   cap.matched = matched;
@@ -139,7 +155,7 @@ app.all('/api/ingest', async (req, res) => {
   if (urgent && !db.settings.muteAll) {
     await pushAll({
       title: `⚡ ${cap.source.toUpperCase()} · ${matched.join(', ')}`,
-      body: `${cap.sender ? cap.sender + ': ' : ''}${cap.title || cap.text}`.slice(0, 160),
+      body: `${cap.contactLabel || cap.sender ? (cap.contactLabel || cap.sender) + ': ' : ''}${cap.title || cap.text}`.slice(0, 160),
       tag: cap.id,
       url: '/'
     });
@@ -168,6 +184,11 @@ app.post('/api/upload-call', upload.any(), async (req, res) => {
     text: transcript || (b.text || `통화 ${b.duration || ''}`).toString().slice(0, 4000),
     duration: (b.duration || '').toString().slice(0, 20)
   };
+  const contact = findContact(cap.sender);
+  if (contact) {
+    cap.contactId = contact.id;
+    cap.contactLabel = contactLabel(contact);
+  }
   const { urgent, matched, categories } = evaluate(cap, db.rules);
   cap.urgent = urgent; cap.matched = matched; cap.categories = categories; cap.category = categories[0] || '일반';
   db.captures.unshift(cap);
@@ -177,7 +198,7 @@ app.post('/api/upload-call', upload.any(), async (req, res) => {
   if (urgent && !db.settings.muteAll) {
     await pushAll({
       title: `📞 통화 요청 · ${matched.join(', ')}`,
-      body: `${cap.sender ? cap.sender + ': ' : ''}${cap.title}`.slice(0, 160),
+      body: `${cap.contactLabel || cap.sender ? (cap.contactLabel || cap.sender) + ': ' : ''}${cap.title}`.slice(0, 160),
       tag: cap.id, url: '/'
     });
   }
@@ -247,6 +268,35 @@ app.patch('/api/alarms/:id', (req, res) => {
 app.delete('/api/alarms/:id', (req, res) => {
   const db = get();
   db.alarms = db.alarms.filter((alarm) => alarm.id !== req.params.id);
+  save();
+  res.json({ ok: true });
+});
+
+// ---- 거래처/담당자 프로필 ----
+function normalizeContact(input) {
+  const sender = String(input.sender || '').trim().slice(0, 120);
+  if (!sender) return null;
+  return {
+    id: input.id || uid(),
+    sender,
+    company: String(input.company || '').trim().slice(0, 100),
+    name: String(input.name || '').trim().slice(0, 80),
+    department: String(input.department || '').trim().slice(0, 80)
+  };
+}
+app.get('/api/contacts', (_req, res) => res.json({ contacts: get().contacts }));
+app.post('/api/contacts', (req, res) => {
+  const contact = normalizeContact(req.body || {});
+  if (!contact) return res.status(400).json({ error: '보낸 사람 식별자를 입력하세요.' });
+  const db = get();
+  db.contacts = db.contacts.filter((item) => item.sender.toLowerCase() !== contact.sender.toLowerCase());
+  db.contacts.push(contact);
+  save();
+  res.json({ ok: true, contact });
+});
+app.delete('/api/contacts/:id', (req, res) => {
+  const db = get();
+  db.contacts = db.contacts.filter((contact) => contact.id !== req.params.id);
   save();
   res.json({ ok: true });
 });

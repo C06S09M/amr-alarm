@@ -159,6 +159,22 @@ async function loadAlarms() {
   renderAlarms();
 }
 
+function renderContacts(contacts) {
+  $('#contacts').innerHTML = contacts.map((contact) => `
+    <li class="contact-item">
+      <div><strong>${esc(contact.company || '업체 미지정')}</strong><span>${esc(contact.name || contact.sender)}</span><small>${esc(contact.department || '')} · ${esc(contact.sender)}</small></div>
+      <button class="del" data-contact-delete="${contact.id}" title="삭제">×</button>
+    </li>`).join('');
+  $('#contacts').querySelectorAll('[data-contact-delete]').forEach((button) => {
+    button.onclick = async () => { await api(`/api/contacts/${button.dataset.contactDelete}`, { method: 'DELETE' }); loadContacts(); };
+  });
+}
+
+async function loadContacts() {
+  const data = await api('/api/contacts');
+  renderContacts(data.contacts || []);
+}
+
 // ---- 이벤트 바인딩 ----
 $('#enableBtn').onclick = enableNotifications;
 $('#refreshBrief').onclick = loadBrief;
@@ -181,6 +197,15 @@ $('#addRule').onclick = () => { state.rules.push({ keyword: '', category: '일�
 $('#saveRules').onclick = async () => {
   const r = await api('/api/rules', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules: state.rules }) });
   state.rules = r.rules; renderRules(); setStatus('규칙을 저장했습니다.');
+};
+$('#contactForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const result = await api('/api/contacts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sender: $('#contactSender').value, company: $('#contactCompany').value, name: $('#contactName').value, department: $('#contactDepartment').value })
+  });
+  if (result.error) { setStatus(result.error); return; }
+  e.target.reset(); loadContacts(); setStatus('거래처 정보를 저장했습니다.');
 };
 $('#copyUrl').onclick = () => { navigator.clipboard.writeText($('#ingestUrl').textContent).then(() => setStatus('주소를 복사했습니다.')); };
 document.querySelectorAll('.copy-macro').forEach((button) => {
@@ -205,4 +230,5 @@ $('#alarmForm').onsubmit = async (e) => {
 $('#ingestUrl').textContent = `${location.origin}/api/ingest?token=<발급토큰>`;
 loadFeed(); loadBrief();
 loadAlarms();
+loadContacts();
 setInterval(loadFeed, 20000);   // 20초마다 피드 갱신
