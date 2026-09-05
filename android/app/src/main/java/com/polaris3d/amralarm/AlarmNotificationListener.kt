@@ -17,22 +17,23 @@ class AlarmNotificationListener : NotificationListenerService() {
         val source = when {
             packageName.contains("kakao", true) -> "kakao"
             packageName.contains("mms", true) || packageName.contains("messaging", true) || packageName.contains("sms", true) -> "sms"
+            sbn.notification.category == Notification.CATEGORY_CALL || packageName.contains("dialer", true) || packageName.contains("incallui", true) -> "call"
             else -> return
         }
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty()
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
         if (TextUtils.isEmpty(title) && TextUtils.isEmpty(text)) return
-        executor.execute { sendCapture(source, title, text) }
+        executor.execute { sendCapture(source, title, text, if (source == "call") "call" else "msg") }
     }
 
-    private fun sendCapture(source: String, sender: String, text: String) {
+    private fun sendCapture(source: String, sender: String, text: String, type: String) {
         val body = listOf(
             "token" to BuildConfig.INGEST_TOKEN,
             "source" to source,
             "sender" to sender,
             "text" to text,
-            "type" to "msg"
+            "type" to type
         ).joinToString("&") { (key, value) ->
             "${URLEncoder.encode(key, "UTF-8")}=${URLEncoder.encode(value, "UTF-8")}"
         }

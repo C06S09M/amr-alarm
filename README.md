@@ -74,6 +74,8 @@ node --env-file=.env server.js  # http://localhost:3000
 - 액션: HTTP POST → `https://<앱주소>/api/ingest`
   - 본문: `token=<발급토큰>&source=call&sender=[call_number]&text=부재중/통화 [call_duration]&type=call`
 
+Android 네이티브 앱을 설치하고 알림 접근 권한을 허용하면, 기기에서 표시되는 전화 알림도 `source=call`로 자동 저장됩니다.
+
 **매크로 D — 통화 요청 캡처(★ 녹음 → 전사 → 요청 요약)**  ← 이게 이 앱의 핵심 목적
 사전 준비: 폰 기본 전화 앱에서 **통화 자동 녹음 켜기**(삼성: 전화 → 설정 → 통화 녹음 → 자동 녹음).
 녹음 파일이 저장되는 폴더를 확인해 둡니다(삼성 예: `Recordings/Call/` 또는 `Call/`).
