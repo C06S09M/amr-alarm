@@ -368,8 +368,23 @@ app.get('/api/brief', async (req, res) => {
 app.post('/api/tasks', async (req, res) => {
   try {
     const question = String(req.body?.question || '').trim().slice(0, 300);
-    res.json(await answerTasks(get().captures, question));
+    const result = await answerTasks(get().captures, question);
+    result.action_items = result.action_items.filter((item) => !get().completedTasks.includes(item));
+    res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/tasks/complete', (req, res) => {
+  const item = String(req.body?.item || '').trim().slice(0, 500);
+  if (!item) return res.status(400).json({ error: '완료할 업무가 없습니다.' });
+  const db = get();
+  if (!db.completedTasks.includes(item)) db.completedTasks.push(item);
+  save();
+  res.json({ ok: true });
+});
+app.post('/api/tasks/reset', (_req, res) => {
+  get().completedTasks = [];
+  save();
+  res.json({ ok: true });
 });
 
 // ---- 브리핑 생성 + 폰으로 즉시 푸시 ----

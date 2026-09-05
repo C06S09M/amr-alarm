@@ -122,8 +122,17 @@ async function askTasks(question = '') {
     body: JSON.stringify({ question })
   });
   $('#taskSummary').textContent = result.summary || '';
-  $('#taskList').innerHTML = (result.action_items || []).map((item) => `<li>${esc(item)}</li>`).join('')
+  $('#taskList').innerHTML = (result.action_items || []).map((item) => `<li class="task-item"><span>${esc(item)}</span><button class="task-done" data-task="${esc(item)}">완료</button></li>`).join('')
     || '<li class="muted">정리할 업무가 없습니다.</li>';
+  $('#taskList').querySelectorAll('[data-task]').forEach((button) => {
+    button.onclick = async () => {
+      await api('/api/tasks/complete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item: button.dataset.task })
+      });
+      askTasks($('#taskQuestion').value);
+    };
+  });
 }
 
 const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -179,6 +188,11 @@ async function loadContacts() {
 $('#enableBtn').onclick = enableNotifications;
 $('#refreshBrief').onclick = loadBrief;
 $('#taskForm').onsubmit = async (e) => { e.preventDefault(); askTasks($('#taskQuestion').value); };
+$('#resetTasks').onclick = async () => {
+  await api('/api/tasks/reset', { method: 'POST' });
+  askTasks($('#taskQuestion').value);
+  setStatus('완료 업무를 초기화했습니다.');
+};
 $('#testBtn').onclick = async () => { const r = await api('/api/test-push', { method: 'POST' }); setStatus(`테스트 알람 발송(${r.sent}대 기기).`); };
 $('#muteBtn').onclick = async () => {
   const r = await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ muteAll: !state.muted }) });

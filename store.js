@@ -14,6 +14,7 @@ const DEFAULT = {
   subscriptions: [],  // web-push 구독 객체
   alarms: [],         // {id, time, label, days, enabled, lastFired}
   contacts: [],       // {id, sender, company, name, department}
+  completedTasks: [], // 업무 정리 결과에서 완료 처리한 항목 문자열
   rules: [            // 기본 키워드 규칙 (대시보드에서 수정)
     { id: 'r1', keyword: '견적', category: '영업', urgent: true },
     { id: 'r2', keyword: '발주', category: '구매', urgent: true },
