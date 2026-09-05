@@ -1,0 +1,19 @@
+# Render.com 배포 설정. New + → Blueprint 로 이 레포를 연결하면 자동 인식됩니다.
+services:
+  - type: web
+    name: amr-alarm
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: INGEST_TOKEN
+        sync: false            # 대시보드에서 직접 입력 (비밀)
+      - key: APP_PASSWORD
+        sync: false            # 대시보드 로그인 비밀번호
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:chosm04@polaris3d.co

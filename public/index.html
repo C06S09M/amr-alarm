@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <title>AMR 캡처 알람</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>AMR 캡처 알람</h1>
+    </div>
+    <div class="top-actions">
+      <button id="muteBtn" class="icon-btn" title="전체 음소거">🔔</button>
+      <button id="logoutBtn" class="ghost-btn">로그아웃</button>
+      <button id="enableBtn" class="primary-btn">알림 켜기</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="cards">
+      <div class="card stat"><span class="label">오늘 캡처</span><span id="cTotal" class="num">0</span></div>
+      <div class="card stat urgent"><span class="label">긴급</span><span id="cUrgent" class="num">0</span></div>
+      <div class="card stat"><span class="label">알림 기기</span><span id="cDevices" class="num">-</span></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>오늘 브리핑</h2><button id="refreshBrief" class="ghost-btn">새로고침</button></div>
+      <p id="briefSummary" class="muted">불러오는 중…</p>
+      <ul id="briefList" class="brief-list"></ul>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>예약 알람</h2></div>
+      <form id="alarmForm" class="alarm-form">
+        <div class="alarm-fields">
+          <label>시간<input id="alarmTime" type="time" required /></label>
+          <label class="alarm-label">알람 내용<input id="alarmLabel" type="text" maxlength="80" placeholder="출근 준비" required /></label>
+        </div>
+        <div class="day-picker" role="group" aria-label="반복 요일">
+          <span class="field-label">반복</span>
+          <label><input type="checkbox" name="alarmDay" value="0" /> 일</label>
+          <label><input type="checkbox" name="alarmDay" value="1" checked /> 월</label>
+          <label><input type="checkbox" name="alarmDay" value="2" checked /> 화</label>
+          <label><input type="checkbox" name="alarmDay" value="3" checked /> 수</label>
+          <label><input type="checkbox" name="alarmDay" value="4" checked /> 목</label>
+          <label><input type="checkbox" name="alarmDay" value="5" checked /> 금</label>
+          <label><input type="checkbox" name="alarmDay" value="6" /> 토</label>
+        </div>
+        <button class="primary-btn wide" type="submit">예약 알람 추가</button>
+      </form>
+      <ul id="alarms" class="alarms"></ul>
+      <p id="alarmEmpty" class="muted small" hidden>등록된 예약 알람이 없습니다.</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>실시간 캡처 피드</h2>
+        <div class="filters" id="filters"></div>
+      </div>
+      <ul id="feed" class="feed"></ul>
+      <p id="feedEmpty" class="muted" hidden>아직 캡처가 없습니다. 폰에서 MacroDroid가 보내면 여기에 실시간으로 쌓입니다.</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>알람 키워드 규칙</h2><button id="addRule" class="ghost-btn">+ 추가</button></div>
+      <p class="muted small">이 키워드가 포함되면 긴급으로 분류되어 폰 푸시 알람이 옵니다.</p>
+      <ul id="rules" class="rules"></ul>
+      <button id="saveRules" class="primary-btn wide">규칙 저장</button>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>설정 · 연결</h2></div>
+      <div class="setting-row"><span>MacroDroid 전송 주소</span></div>
+      <code id="ingestUrl" class="endpoint">…</code>
+      <button id="copyUrl" class="ghost-btn">주소 복사</button>
+      <div class="macro-guides">
+        <details>
+          <summary>메신저 알림 전송</summary>
+          <p class="muted small">HTTP POST · application/x-www-form-urlencoded</p>
+          <code id="macroMessageBody" class="endpoint">token=&lt;발급토큰&gt;&amp;source=[notification_app_name]&amp;sender=[notification_title]&amp;text=[notification_text]&amp;type=msg</code>
+          <button class="ghost-btn copy-macro" data-copy-target="macroMessageBody">본문 복사</button>
+        </details>
+        <details>
+          <summary>문자·부재중 전화 전송</summary>
+          <p class="muted small">문자: source=sms · 전화: source=call</p>
+          <code id="macroSmsBody" class="endpoint">token=&lt;발급토큰&gt;&amp;source=sms&amp;sender=[sms_sender]&amp;text=[sms_message]&amp;type=sms</code>
+          <button class="ghost-btn copy-macro" data-copy-target="macroSmsBody">문자 본문 복사</button>
+        </details>
+        <details>
+          <summary>통화 녹음 업로드</summary>
+          <p class="muted small">POST /api/upload-call · multipart/form-data · 파일 필드명 file</p>
+          <code id="macroCallBody" class="endpoint">token=&lt;발급토큰&gt; · number=[call_number] · duration=[call_duration]</code>
+          <button class="ghost-btn copy-macro" data-copy-target="macroCallBody">설정값 복사</button>
+        </details>
+      </div>
+      <div class="divider"></div>
+      <div class="notification-options">
+        <label><input id="soundToggle" type="checkbox" checked /> 알림 소리</label>
+        <label><input id="vibrateToggle" type="checkbox" checked /> 진동</label>
+      </div>
+      <button id="testBtn" class="primary-btn wide">테스트 알람 보내기</button>
+      <p id="status" class="muted small"></p>
+    </section>
+  </main>
+
+  <footer class="foot muted small">Polaris3D · AMR 업무 캡처/알람 · 독립 실행 PWA</footer>
+  <script src="/app.js"></script>
+</body>
+</html>

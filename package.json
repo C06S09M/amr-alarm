@@ -1,0 +1,21 @@
+{
+  "name": "amr-alarm",
+  "version": "1.0.0",
+  "description": "AMR 업무 캡처 & 실시간 알람 PWA — 폰(MacroDroid) 캡처를 모아 규칙에 맞으면 폰으로 푸시 알람",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "genkeys": "node scripts/genkeys.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "web-push": "^3.6.7",
+    "imapflow": "^1.0.164",
+    "node-cron": "^3.0.3",
+    "multer": "^1.4.5-lts.1"
+  }
+}
