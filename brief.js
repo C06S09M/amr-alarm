@@ -110,3 +110,58 @@ export async function buildBrief(captures, when = 'morning') {
   }
   return { date, when, ...ruleBased(captures, emails) };
 }
+
+function recentCaptures(captures) {
+  const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  return captures.filter((capture) => Date.parse(capture.ts) >= since).slice(0, 200);
+}
+
+function fallbackTasks(captures, question) {
+  const recent = recentCaptures(captures);
+  const items = recent.map((capture) => {
+    const text = `${capture.title || capture.text || ''}`.replace(/\s+/g, ' ').trim();
+    const who = capture.sender ? `${capture.sender}에게 ` : '';
+    const action = capture.urgent || capture.matched?.length ? '확인하고 회신하기' : '내용 확인하기';
+    return `[${capture.source}] ${who}${text.slice(0, 140)} - ${action}`;
+  });
+  return {
+    summary: question ? `'${question}' 관련 최근 업무 ${items.length}건입니다.` : `최근 7일 업무 ${items.length}건입니다.`,
+    action_items: items.slice(0, 30),
+    source_count: recent.length,
+    ai: false
+  };
+}
+
+export async function answerTasks(captures, question = '') {
+  const recent = recentCaptures(captures);
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return fallbackTasks(captures, question);
+  const capText = recent.map((capture) =>
+    `- (${capture.source}) ${capture.sender || ''}: ${capture.title || capture.text}${capture.urgent ? ' [긴급]' : ''}`).join('\n') || '(없음)';
+  const prompt =
+`당신은 업무 비서입니다. 아래는 최근 7일 동안 들어온 전화, 카카오톡, 문자 및 기타 소통 기록입니다.
+사용자의 질문: ${question || '내가 해야 할 업무를 정리해줘'}
+
+[소통 기록]
+${capText}
+
+실제로 사용자가 해야 할 회신, 확인, 준비, 결정 업무만 추려 JSON으로 답하세요.
+잡담과 광고는 제외하고, 같은 업무는 합치세요. 최대 20개까지 우선순위 순으로 정리하세요.
+JSON 형식: {"summary":"한두 문장 요약","action_items":["동사로 끝나는 구체적인 업무"]}`;
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 1800, messages: [{ role: 'user', content: prompt }] })
+    });
+    if (!res.ok) throw new Error('Claude API ' + res.status);
+    const data = await res.json();
+    const text = (data.content && data.content[0] && data.content[0].text) || '';
+    const match = text.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(match ? match[0] : text);
+    return { summary: parsed.summary || '', action_items: Array.isArray(parsed.action_items) ? parsed.action_items.slice(0, 20) : [], source_count: recent.length, ai: true };
+  } catch (e) {
+    console.error('[tasks] Claude 실패, 규칙 기반으로 대체:', e.message);
+    return fallbackTasks(captures, question);
+  }
+}

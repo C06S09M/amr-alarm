@@ -34,6 +34,9 @@ main{max-width:640px;margin:0 auto;padding:16px;display:flex;flex-direction:colu
 .icon-btn.muted-on{opacity:.5}
 .brief-list{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:7px}
 .brief-list li{font-size:13px;padding:8px 10px;background:var(--panel2);border-radius:9px;border-left:3px solid var(--accent)}
+.task-form{display:flex;gap:8px}
+.task-form input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--text);padding:9px 10px;font:inherit}
+.task-form input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .alarm-form{display:flex;flex-direction:column;gap:12px}
 .alarm-fields{display:flex;gap:10px}
 .alarm-fields label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:12px}
@@ -110,4 +113,6 @@ main{max-width:640px;margin:0 auto;padding:16px;display:flex;flex-direction:colu
   .alarm-fields input{width:100%}
   .card-head{align-items:flex-start;flex-wrap:wrap}
   .filters{width:100%}
+  .task-form{flex-direction:column}
+  .task-form .primary-btn{width:100%}
 }

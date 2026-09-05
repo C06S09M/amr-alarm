@@ -115,6 +115,17 @@ async function loadBrief() {
     || '<li class="muted">긴급 항목 없음</li>';
 }
 
+async function askTasks(question = '') {
+  $('#taskSummary').textContent = '최근 통화·카톡·문자를 정리하는 중…';
+  const result = await api('/api/tasks', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question })
+  });
+  $('#taskSummary').textContent = result.summary || '';
+  $('#taskList').innerHTML = (result.action_items || []).map((item) => `<li>${esc(item)}</li>`).join('')
+    || '<li class="muted">정리할 업무가 없습니다.</li>';
+}
+
 const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 function renderAlarms() {
   const list = $('#alarms');
@@ -150,11 +161,8 @@ async function loadAlarms() {
 
 // ---- 이벤트 바인딩 ----
 $('#enableBtn').onclick = enableNotifications;
-$('#logoutBtn').onclick = async () => {
-  await api('/api/auth/logout', { method: 'POST' });
-  location.assign('/login.html');
-};
 $('#refreshBrief').onclick = loadBrief;
+$('#taskForm').onsubmit = async (e) => { e.preventDefault(); askTasks($('#taskQuestion').value); };
 $('#testBtn').onclick = async () => { const r = await api('/api/test-push', { method: 'POST' }); setStatus(`테스트 알람 발송(${r.sent}대 기기).`); };
 $('#muteBtn').onclick = async () => {
   const r = await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ muteAll: !state.muted }) });

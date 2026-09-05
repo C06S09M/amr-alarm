@@ -7,7 +7,7 @@ import cron from 'node-cron';
 import multer from 'multer';
 import { load, save, get } from './store.js';
 import { evaluate } from './rules.js';
-import { buildBrief, summarizeCall } from './brief.js';
+import { answerTasks, buildBrief, summarizeCall } from './brief.js';
 import { transcribeAudio } from './transcribe.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } }); // 25MB
@@ -313,6 +313,12 @@ app.get('/api/brief', async (req, res) => {
     const when = req.query.when === 'evening' ? 'evening' : 'morning';
     const brief = await buildBrief(get().captures, when);
     res.json(brief);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/api/tasks', async (req, res) => {
+  try {
+    const question = String(req.body?.question || '').trim().slice(0, 300);
+    res.json(await answerTasks(get().captures, question));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

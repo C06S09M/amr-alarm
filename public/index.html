@@ -16,8 +16,16 @@
       <h1>AMR 캡처 알람</h1>
     </div>
     <div class="top-actions">
+      <section class="card">
+        <div class="card-head"><h2>업무에게 물어보기</h2></div>
+        <form id="taskForm" class="task-form">
+          <input id="taskQuestion" type="text" maxlength="300" placeholder="내가 오늘 해야 할 일은?" />
+          <button class="primary-btn" type="submit">정리하기</button>
+        </form>
+        <p id="taskSummary" class="muted small"></p>
+        <ul id="taskList" class="brief-list"></ul>
+      </section>
       <button id="muteBtn" class="icon-btn" title="전체 음소거">🔔</button>
-      <button id="logoutBtn" class="ghost-btn">로그아웃</button>
       <button id="enableBtn" class="primary-btn">알림 켜기</button>
     </div>
   </header>
