@@ -16,7 +16,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 const INGEST_TOKEN = process.env.INGEST_TOKEN || 'change-me-token';
-const APP_PASSWORD = process.env.APP_PASSWORD || '';
+const APP_PASSWORD = '';
 const sessions = new Set();
 
 // ---- VAPID (웹푸시) 설정 ----

@@ -9,8 +9,6 @@ services:
     envVars:
       - key: INGEST_TOKEN
         sync: false            # 대시보드에서 직접 입력 (비밀)
-      - key: APP_PASSWORD
-        sync: false            # 대시보드 로그인 비밀번호
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_KEY
