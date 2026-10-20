@@ -101,6 +101,10 @@ async function loadFeed() {
   state.rules = d.rules; state.muted = d.settings.muteAll;
   $('#soundToggle').checked = d.settings.alarmSound !== false;
   $('#vibrateToggle').checked = d.settings.alarmVibrate !== false;
+  $('#adsToggle').checked = d.settings.filterAds !== false;
+  if (document.activeElement !== $('#adKeywords')) $('#adKeywords').value = (d.settings.ignoreKeywords || []).join(', ');
+  $('#adsStat').textContent = d.counts.adsBlocked ? `오늘 광고 ${d.counts.adsBlocked}건 차단됨` : '';
+  $('#taskHeading').textContent = d.counts.todosOpen ? `할 일 ${d.counts.todosOpen}건` : '할 일';
   $('#muteBtn').classList.toggle('muted-on', state.muted);
   $('#muteBtn').textContent = state.muted ? '🔕' : '🔔';
   renderFilters(d.counts.bySource, d.counts.byCategory);
@@ -115,6 +119,28 @@ async function loadBrief() {
     || '<li class="muted">긴급 항목 없음</li>';
 }
 
+// ---- 할 일 목록 (저장된 것) ----
+function renderTodos(todos) {
+  $('#taskList').innerHTML = (todos || []).map((t) =>
+    `<li class="task-item"><span>${esc(t.text)}</span><button class="task-done" data-todo="${esc(t.id)}">완료</button></li>`).join('')
+    || '<li class="muted">남은 할 일이 없습니다.</li>';
+  $('#taskList').querySelectorAll('[data-todo]').forEach((button) => {
+    button.onclick = async () => {
+      await api(`/api/todos/${button.dataset.todo}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done' })
+      });
+      loadTodos(); loadFeed();
+    };
+  });
+}
+
+async function loadTodos() {
+  const d = await api('/api/todos');
+  renderTodos(d.open || []);
+  if (!$('#taskSummary').textContent) $('#taskSummary').textContent = d.openCount ? `남은 할 일 ${d.openCount}건` : '';
+}
+
 async function askTasks(question = '') {
   $('#taskSummary').textContent = '최근 통화·카톡·문자를 정리하는 중…';
   const result = await api('/api/tasks', {
@@ -122,17 +148,8 @@ async function askTasks(question = '') {
     body: JSON.stringify({ question })
   });
   $('#taskSummary').textContent = result.summary || '';
-  $('#taskList').innerHTML = (result.action_items || []).map((item) => `<li class="task-item"><span>${esc(item)}</span><button class="task-done" data-task="${esc(item)}">완료</button></li>`).join('')
-    || '<li class="muted">정리할 업무가 없습니다.</li>';
-  $('#taskList').querySelectorAll('[data-task]').forEach((button) => {
-    button.onclick = async () => {
-      await api('/api/tasks/complete', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item: button.dataset.task })
-      });
-      askTasks($('#taskQuestion').value);
-    };
-  });
+  renderTodos(result.todos || []);
+  loadFeed();
 }
 
 const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
@@ -190,8 +207,28 @@ $('#refreshBrief').onclick = loadBrief;
 $('#taskForm').onsubmit = async (e) => { e.preventDefault(); askTasks($('#taskQuestion').value); };
 $('#resetTasks').onclick = async () => {
   await api('/api/tasks/reset', { method: 'POST' });
-  askTasks($('#taskQuestion').value);
-  setStatus('완료 업무를 초기화했습니다.');
+  $('#taskSummary').textContent = '';
+  loadTodos(); loadFeed();
+  setStatus('완료했던 할 일을 다시 되돌렸습니다.');
+};
+$('#todoAddForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('#todoAddText').value.trim();
+  if (!text) return;
+  const r = await api('/api/todos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+  if (r.error) { setStatus(r.error); return; }
+  $('#todoAddText').value = '';
+  loadTodos(); loadFeed();
+};
+$('#adsToggle').onchange = async (e) => {
+  await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filterAds: e.target.checked }) });
+  setStatus(e.target.checked ? '광고 차단을 켰습니다.' : '광고 차단을 껐습니다.');
+};
+$('#adKeywordsForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const ignoreKeywords = $('#adKeywords').value.split(',').map((s) => s.trim()).filter(Boolean);
+  await api('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ignoreKeywords }) });
+  setStatus('광고 차단 단어를 저장했습니다.');
 };
 $('#testBtn').onclick = async () => { const r = await api('/api/test-push', { method: 'POST' }); setStatus(`테스트 알람 발송(${r.sent}대 기기).`); };
 $('#muteBtn').onclick = async () => {
@@ -243,6 +280,8 @@ $('#alarmForm').onsubmit = async (e) => {
 // 초기화
 $('#ingestUrl').textContent = `${location.origin}/api/ingest?token=<발급토큰>`;
 loadFeed(); loadBrief();
+loadTodos();
 loadAlarms();
 loadContacts();
 setInterval(loadFeed, 20000);   // 20초마다 피드 갱신
+setInterval(loadTodos, 60000);  // 1분마다 할 일 갱신

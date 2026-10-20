@@ -35,13 +35,18 @@
     </section>
 
     <section class="card">
-      <div class="card-head"><h2>업무에게 물어보기</h2><button id="resetTasks" class="ghost-btn">완료 업무 초기화</button></div>
+      <div class="card-head"><h2 id="taskHeading">할 일</h2><button id="resetTasks" class="ghost-btn">완료 되돌리기</button></div>
+      <p class="muted small">통화·카톡·문자에서 뽑힌 업무가 여기에 쌓입니다. 완료하면 사라지고, 날짜가 지나도 남습니다.</p>
       <form id="taskForm" class="task-form">
         <input id="taskQuestion" type="text" maxlength="300" placeholder="내가 오늘 해야 할 일은?" />
         <button class="primary-btn" type="submit">정리하기</button>
       </form>
       <p id="taskSummary" class="muted small"></p>
       <ul id="taskList" class="brief-list"></ul>
+      <form id="todoAddForm" class="task-form">
+        <input id="todoAddText" type="text" maxlength="300" placeholder="직접 추가할 할 일" />
+        <button class="ghost-btn" type="submit">추가</button>
+      </form>
     </section>
 
     <section class="card">
@@ -125,6 +130,16 @@
         <label><input id="soundToggle" type="checkbox" checked /> 알림 소리</label>
         <label><input id="vibrateToggle" type="checkbox" checked /> 진동</label>
       </div>
+      <div class="divider"></div>
+      <div class="notification-options">
+        <label><input id="adsToggle" type="checkbox" checked /> 광고 알림톡·스팸 자동 차단</label>
+      </div>
+      <p class="muted small">아래 단어가 들어간 메시지는 기록·알람·할 일에서 제외됩니다. 쉼표로 구분.</p>
+      <form id="adKeywordsForm" class="task-form">
+        <input id="adKeywords" type="text" maxlength="400" placeholder="(광고), 무료수신거부, 수신거부" />
+        <button class="ghost-btn" type="submit">저장</button>
+      </form>
+      <p id="adsStat" class="muted small"></p>
       <button id="testBtn" class="primary-btn wide">테스트 알람 보내기</button>
       <p id="status" class="muted small"></p>
     </section>
