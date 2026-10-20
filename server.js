@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import multer from 'multer';
 import { load, save, get } from './store.js';
-import { evaluate } from './rules.js';
+import { evaluate, isAd } from './rules.js';
 import { answerTasks, buildBrief, summarizeCall } from './brief.js';
 import { transcribeAudio } from './transcribe.js';
 
@@ -118,6 +118,50 @@ function contactLabel(contact) {
   return contact ? [contact.company, contact.name, contact.department].filter(Boolean).join(' · ') : '';
 }
 
+// ---- 공통 헬퍼: 광고 제외 캡처, 할 일(todo) 저장 ----
+function visibleCaptures(db) {
+  return db.captures.filter((c) => !c.ignored);
+}
+function normText(s) {
+  return String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+function openTodos(db) {
+  return db.todos.filter((t) => t.status !== 'done');
+}
+// 같은 내용이 이미 있으면 추가하지 않음(완료된 것도 다시 안 만듦).
+function addTodo(db, text, meta = {}) {
+  const clean = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (!clean) return null;
+  const key = normText(clean);
+  const exists = db.todos.find((t) => normText(t.text) === key);
+  if (exists) return exists;
+  if (db.completedTasks.some((c) => normText(c) === key)) return null;
+  const todo = {
+    id: uid(), text: clean,
+    source: meta.source || '', sender: meta.sender || '', captureId: meta.captureId || '',
+    createdTs: now(), status: 'open', doneTs: ''
+  };
+  db.todos.unshift(todo);
+  if (db.todos.length > 300) db.todos.length = 300;
+  return todo;
+}
+function markTodoDone(db, { id, text }) {
+  const key = normText(text);
+  const t = db.todos.find((x) => (id && x.id === id) || (key && normText(x.text) === key));
+  if (t && t.status !== 'done') { t.status = 'done'; t.doneTs = now(); }
+  return t || null;
+}
+function mergeTodosInto(db, items) {
+  const seen = new Set();
+  const out = [];
+  for (const it of [...(items || []), ...openTodos(db).map((t) => t.text)]) {
+    const k = normText(it);
+    if (!k || seen.has(k)) continue;
+    seen.add(k); out.push(it);
+  }
+  return out;
+}
+
 // ---- 설정: 앱에 넘길 공개키 ----
 app.get('/api/config', (_req, res) => res.json({ vapidPublicKey: PUB }));
 
@@ -143,6 +187,16 @@ app.all('/api/ingest', async (req, res) => {
     cap.contactId = contact.id;
     cap.contactLabel = contactLabel(contact);
   }
+
+  // 광고 알림톡/스팸은 조용히 차단: 저장은 하되 숨기고, 알람·브리핑·할 일에서 제외
+  if (db.settings.filterAds && isAd(cap, db.settings.ignoreKeywords)) {
+    cap.ignored = true; cap.urgent = false; cap.matched = []; cap.categories = ['광고']; cap.category = '광고';
+    db.captures.unshift(cap);
+    if (db.captures.length > 500) db.captures.length = 500;
+    save();
+    return res.json({ ok: true, id: cap.id, ignored: true });
+  }
+
   const { urgent, matched, categories } = evaluate(cap, db.rules);
   cap.urgent = urgent;
   cap.matched = matched;
@@ -150,6 +204,11 @@ app.all('/api/ingest', async (req, res) => {
   cap.category = categories[0] || '일반';
   db.captures.unshift(cap);
   if (db.captures.length > 500) db.captures.length = 500;   // 최근 500건 유지
+  // 긴급 건은 바로 할 일로 등록 (나중에 '정리하기'에서 AI가 다듬음)
+  if (urgent) {
+    const who = cap.contactLabel || cap.sender;
+    addTodo(db, `${who ? who + ': ' : ''}${cap.title || cap.text}`, { source: cap.source, sender: cap.sender, captureId: cap.id });
+  }
   save();
 
   if (urgent && !db.settings.muteAll) {
@@ -193,6 +252,11 @@ app.post('/api/upload-call', upload.any(), async (req, res) => {
   cap.urgent = urgent; cap.matched = matched; cap.categories = categories; cap.category = categories[0] || '일반';
   db.captures.unshift(cap);
   if (db.captures.length > 500) db.captures.length = 500;
+  // 전사된 통화는 요청 요약을 그대로 할 일로 등록
+  if (transcript) {
+    const who = cap.contactLabel || cap.sender;
+    addTodo(db, `${who ? who + ' 통화: ' : '통화: '}${cap.title}`, { source: 'call', sender: cap.sender, captureId: cap.id });
+  }
   save();
 
   if (urgent && !db.settings.muteAll) {
@@ -323,7 +387,9 @@ setInterval(checkScheduledAlarms, 15000);
 app.get('/api/feed', (_req, res) => {
   const db = get();
   const today = new Date().toISOString().slice(0, 10);
-  const todays = db.captures.filter((c) => c.ts.slice(0, 10) === today);
+  const visible = visibleCaptures(db);
+  const todays = visible.filter((c) => c.ts.slice(0, 10) === today);
+  const adsToday = db.captures.filter((c) => c.ignored && c.ts.slice(0, 10) === today).length;
   const bySource = {};
   const byCategory = {};
   for (const c of todays) {
@@ -331,8 +397,8 @@ app.get('/api/feed', (_req, res) => {
     byCategory[c.category || '일반'] = (byCategory[c.category || '일반'] || 0) + 1;
   }
   res.json({
-    captures: db.captures.slice(0, 100),
-    counts: { total: todays.length, urgent: todays.filter((c) => c.urgent).length, bySource, byCategory },
+    captures: visible.slice(0, 100),
+    counts: { total: todays.length, urgent: todays.filter((c) => c.urgent).length, adsBlocked: adsToday, todosOpen: openTodos(db).length, bySource, byCategory },
     rules: db.rules,
     settings: db.settings,
     subscriptionsCount: db.subscriptions.length
@@ -353,43 +419,93 @@ app.post('/api/settings', (req, res) => {
   if (typeof req.body.muteAll === 'boolean') db.settings.muteAll = req.body.muteAll;
   if (typeof req.body.alarmSound === 'boolean') db.settings.alarmSound = req.body.alarmSound;
   if (typeof req.body.alarmVibrate === 'boolean') db.settings.alarmVibrate = req.body.alarmVibrate;
+  if (typeof req.body.filterAds === 'boolean') db.settings.filterAds = req.body.filterAds;
+  if (Array.isArray(req.body.ignoreKeywords)) {
+    db.settings.ignoreKeywords = req.body.ignoreKeywords
+      .map((k) => String(k || '').trim().slice(0, 40)).filter(Boolean).slice(0, 30);
+  }
   save();
   res.json({ ok: true, settings: db.settings });
+});
+
+// ---- 할 일(To-do): 통화·카톡·문자에서 뽑힌 업무를 날짜가 지나도 쌓아두고 완료 관리 ----
+app.get('/api/todos', (_req, res) => {
+  const db = get();
+  const open = openTodos(db);
+  const done = db.todos.filter((t) => t.status === 'done').slice(0, 30);
+  res.json({ open, done, openCount: open.length });
+});
+app.post('/api/todos', (req, res) => {
+  const db = get();
+  const todo = addTodo(db, req.body && req.body.text, { source: 'manual' });
+  if (!todo) return res.status(400).json({ error: '할 일 내용을 입력하세요.' });
+  save();
+  res.json({ ok: true, todo });
+});
+app.patch('/api/todos/:id', (req, res) => {
+  const db = get();
+  const t = db.todos.find((x) => x.id === req.params.id);
+  if (!t) return res.status(404).json({ error: '할 일을 찾을 수 없습니다.' });
+  const status = req.body && req.body.status === 'open' ? 'open' : 'done';
+  t.status = status; t.doneTs = status === 'done' ? now() : '';
+  if (typeof (req.body && req.body.text) === 'string' && req.body.text.trim()) t.text = req.body.text.trim().slice(0, 300);
+  save();
+  res.json({ ok: true, todo: t });
+});
+app.delete('/api/todos/:id', (req, res) => {
+  const db = get();
+  db.todos = db.todos.filter((t) => t.id !== req.params.id);
+  save();
+  res.json({ ok: true });
 });
 
 // ---- 브리핑: 캡처 + 이메일 + AI 요약 (설정 없으면 규칙 기반으로 자동 대체) ----
 app.get('/api/brief', async (req, res) => {
   try {
+    const db = get();
     const when = req.query.when === 'evening' ? 'evening' : 'morning';
-    const brief = await buildBrief(get().captures, when);
+    const brief = await buildBrief(visibleCaptures(db), when);
+    brief.action_items = mergeTodosInto(db, brief.action_items).slice(0, 12);
     res.json(brief);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
+// 업무 정리: AI가 뽑은 항목을 할 일로 저장해 두고(중복 제거), 완료된 것은 빼고 돌려줌
 app.post('/api/tasks', async (req, res) => {
   try {
+    const db = get();
     const question = String(req.body?.question || '').trim().slice(0, 300);
-    const result = await answerTasks(get().captures, question);
-    result.action_items = result.action_items.filter((item) => !get().completedTasks.includes(item));
+    const result = await answerTasks(visibleCaptures(db), question);
+    for (const item of result.action_items || []) addTodo(db, item, { source: 'ai' });
+    save();
+    const open = openTodos(db);
+    result.action_items = open.map((t) => t.text);
+    result.todos = open;
     res.json(result);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/api/tasks/complete', (req, res) => {
   const item = String(req.body?.item || '').trim().slice(0, 500);
-  if (!item) return res.status(400).json({ error: '완료할 업무가 없습니다.' });
+  const id = req.body?.id ? String(req.body.id) : '';
+  if (!item && !id) return res.status(400).json({ error: '완료할 업무가 없습니다.' });
   const db = get();
-  if (!db.completedTasks.includes(item)) db.completedTasks.push(item);
+  markTodoDone(db, { id, text: item });
+  if (item && !db.completedTasks.includes(item)) db.completedTasks.push(item);
   save();
   res.json({ ok: true });
 });
 app.post('/api/tasks/reset', (_req, res) => {
-  get().completedTasks = [];
+  const db = get();
+  db.completedTasks = [];
+  for (const t of db.todos) if (t.status === 'done') { t.status = 'open'; t.doneTs = ''; }
   save();
   res.json({ ok: true });
 });
 
 // ---- 브리핑 생성 + 폰으로 즉시 푸시 ----
 async function runBriefAndPush(when) {
-  const brief = await buildBrief(get().captures, when);
+  const db = get();
+  const brief = await buildBrief(visibleCaptures(db), when);
+  brief.action_items = mergeTodosInto(db, brief.action_items).slice(0, 12);
   const head = when === 'evening' ? '🌆 퇴근 전 브리핑' : '☀️ 출근 브리핑';
   const body = brief.action_items && brief.action_items.length
     ? brief.action_items.slice(0, 4).map((t) => '• ' + t).join('\n')

@@ -117,11 +117,12 @@ function recentCaptures(captures) {
 }
 
 function fallbackTasks(captures, question) {
-  const recent = recentCaptures(captures);
+  // AI 키가 없을 때: 잡담까지 할 일로 만들지 않도록 긴급 건과 통화만 추림
+  const recent = recentCaptures(captures).filter((c) => c.urgent || (c.matched && c.matched.length) || c.source === 'call');
   const items = recent.map((capture) => {
     const text = `${capture.title || capture.text || ''}`.replace(/\s+/g, ' ').trim();
     const who = capture.sender ? `${capture.sender}에게 ` : '';
-    const action = capture.urgent || capture.matched?.length ? '확인하고 회신하기' : '내용 확인하기';
+    const action = capture.source === 'call' ? '통화 요청 처리하기' : '확인하고 회신하기';
     return `[${capture.source}] ${who}${text.slice(0, 140)} - ${action}`;
   });
   return {

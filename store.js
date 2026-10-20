@@ -10,18 +10,23 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const FILE = path.join(DATA_DIR, 'db.json');
 
 const DEFAULT = {
-  captures: [],       // {id, ts, source, sender, title, text, type, urgent}
+  captures: [],       // {id, ts, source, sender, title, text, type, urgent, ignored}
   subscriptions: [],  // web-push 구독 객체
   alarms: [],         // {id, time, label, days, enabled, lastFired}
   contacts: [],       // {id, sender, company, name, department}
-  completedTasks: [], // 업무 정리 결과에서 완료 처리한 항목 문자열
+  completedTasks: [], // (구버전 호환) 업무 정리 결과에서 완료 처리한 항목 문자열
+  todos: [],          // {id, text, source, sender, captureId, createdTs, status: open|done, doneTs}
   rules: [            // 기본 키워드 규칙 (대시보드에서 수정)
     { id: 'r1', keyword: '견적', category: '영업', urgent: true },
     { id: 'r2', keyword: '발주', category: '구매', urgent: true },
     { id: 'r3', keyword: 'PO', category: '구매', urgent: true },
     { id: 'r4', keyword: '납기', category: '일정', urgent: true }
   ],
-  settings: { muteAll: false, alarmSound: true, alarmVibrate: true }
+  settings: {
+    muteAll: false, alarmSound: true, alarmVibrate: true,
+    filterAds: true,                      // 광고 알림톡/스팸 자동 차단
+    ignoreKeywords: ['(광고)', '[광고]', '무료수신거부', '무료 수신거부', '수신거부', '광고성 정보']
+  }
 };
 
 let db;
